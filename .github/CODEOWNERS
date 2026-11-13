@@ -1,0 +1,9 @@
+# The lead must approve changes to these shared files.
+# Everything else needs one approval from any teammate.
+# scripts/setup_github.sh puts the lead's GitHub username here.
+/contracts/       @LEAD_USERNAME
+/.github/         @LEAD_USERNAME
+/scripts/         @LEAD_USERNAME
+/hk               @LEAD_USERNAME
+/pyproject.toml   @LEAD_USERNAME
+/PLAN.md          @LEAD_USERNAME

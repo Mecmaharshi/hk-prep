@@ -1,0 +1,316 @@
+#!/usr/bin/env bash
+# hk: the team's commands for the hackathon (git, running the API, data summary).
+# Plain scripts under the hood: instant, and no AI tokens. Run "hk help" for the list.
+set -euo pipefail
+
+MAIN="${HK_MAIN:-main}"
+REMOTE="${HK_REMOTE:-origin}"
+PLAN="PLAN.md"
+MAX_FILE_MB=5
+HK_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+say()  { printf '%s\n' "$*"; }
+fail() { printf 'hk: %s\n' "$*" >&2; exit 1; }
+have() { command -v "$1" >/dev/null 2>&1; }
+trim() { printf '%s' "$1" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
+slug() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-//' \
+    | cut -c1-40 | sed -e 's/-$//'
+}
+current_branch() { git rev-parse --abbrev-ref HEAD; }
+task_id() { current_branch | sed -n 's#^task/\([A-Z]-[0-9][0-9]\).*#\1#p'; }
+is_dirty() { [ -n "$(git status --porcelain)" ]; }
+field() { printf '%s' "$1" | cut -d'|' -f"$2"; }
+
+# The Python to use: the active virtual environment first, then python3, then python.
+# Running each one also skips the fake "python3" that Windows opens the Store with.
+find_python() {
+  local candidate
+  for candidate in "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}" \
+    "${VIRTUAL_ENV:+$VIRTUAL_ENV/Scripts/python}" python3 python; do
+    [ -n "$candidate" ] || continue
+    if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
+      printf '%s' "$candidate"
+      return 0
+    fi
+  done
+  fail "Python 3 not found. Install it, or activate the project's .venv."
+}
+
+fetch() {
+  git fetch --quiet --prune "$REMOTE" || fail "Can't reach GitHub. Check the internet, then try again."
+}
+
+# One PLAN.md row as "task|who|needs|done when". Empty if the ID isn't there.
+plan_row() {
+  if [ -z "$1" ] || [ ! -f "$PLAN" ]; then return 0; fi
+  awk -F'|' -v id="$1" '
+    function t(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+    t($2) == id { print t($3) "|" t($4) "|" t($5) "|" t($6); exit }
+  ' "$PLAN"
+}
+
+# Bring the team's latest main into this branch. Stops with clear steps on a conflict.
+merge_main() {
+  if git merge --quiet --no-edit --autostash "$REMOTE/$MAIN" >/dev/null 2>&1; then
+    return 0
+  fi
+  local conflicted
+  conflicted=$(git diff --name-only --diff-filter=U)
+  if [ -z "$conflicted" ]; then
+    fail "Couldn't bring in the latest $MAIN. Run: git status"
+  fi
+  say "Conflict: you and a teammate changed the same lines in:"
+  printf '%s\n' "$conflicted" | sed 's/^/  /'
+  say "Fix it: run /hk-fix in Copilot Chat (or fix by hand), then run: hk push"
+  exit 1
+}
+
+# Tidy changed files with the team's formatters, if they're installed. Never blocks.
+format_changed() {
+  local files py js prettier
+  files=$({ git diff --name-only --diff-filter=d HEAD; git ls-files --others --exclude-standard; } | sort -u)
+  py=$(printf '%s\n' "$files" | grep -E '\.py$' || true)
+  js=$(printf '%s\n' "$files" | grep -E '\.(js|jsx|ts|tsx|css)$' || true)
+  if [ -n "$py" ] && have ruff; then
+    printf '%s\n' "$py" | xargs ruff format --quiet >/dev/null 2>&1 || true
+    printf '%s\n' "$py" | xargs ruff check --fix --quiet --exit-zero >/dev/null 2>&1 || true
+  fi
+  if [ -n "$js" ]; then
+    for prettier in node_modules/.bin/prettier frontend/node_modules/.bin/prettier; do
+      if [ -x "$prettier" ]; then
+        printf '%s\n' "$js" | xargs "$prettier" --write >/dev/null 2>&1 || true
+        break
+      fi
+    done
+  fi
+}
+
+# Stop secrets and big files before they reach GitHub.
+guard_staged() {
+  local file size bad=""
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    case "$file" in
+      *.example|*.sample) continue ;;
+      .env|*/.env|.env.*|*/.env.*|*.pem|*.key|*id_rsa*) bad="$bad
+  $file (looks like a secret)"; continue ;;
+    esac
+    if [ -f "$file" ]; then
+      size=$(wc -c < "$file" | tr -d ' ')
+      if [ "$size" -gt $((MAX_FILE_MB * 1024 * 1024)) ]; then
+        bad="$bad
+  $file (bigger than $MAX_FILE_MB MB)"
+      fi
+    fi
+  done <<EOF
+$(git diff --cached --name-only)
+EOF
+  if [ -n "$bad" ]; then
+    git reset --quiet
+    printf 'hk: Not pushed. These files should not go to GitHub:%s\n' "$bad" >&2
+    printf 'Add them to .gitignore, then run hk push again.\n' >&2
+    exit 1
+  fi
+}
+
+# Save, sync and push the current task branch.
+push_work() {
+  local branch_name id
+  branch_name=$(current_branch)
+  if [ "$branch_name" = "$MAIN" ]; then
+    fail "You're on $MAIN. Start a task first, like: hk start B-01"
+  fi
+  if is_dirty; then
+    format_changed
+    git add -A
+    guard_staged
+    id=$(task_id)
+    git commit --quiet -m "${1:-${id:-$branch_name}: update}"
+  fi
+  fetch
+  merge_main
+  git push --quiet -u "$REMOTE" HEAD 2>/dev/null || fail "Push failed. Run hk sync, then hk push again."
+}
+
+compare_url() {
+  local url
+  url=$(git remote get-url "$REMOTE" | sed -e 's#^git@github\.com:#https://github.com/#' -e 's#\.git$##')
+  printf '%s/compare/%s...%s?expand=1' "$url" "$MAIN" "$(current_branch)"
+}
+
+cmd_help() {
+  cat <<'EOF'
+Plain commands (instant, no AI):
+  hk help           list all commands
+  hk start B-01     start task B-01 on a fresh branch
+  hk sync           get the team's latest work
+  hk push           tidy, sync and push your work
+  hk pr             open a pull request for your task
+  hk status         who is doing what
+  hk run            start the API (http://localhost:8000/docs)
+  hk data [file]    quick summary of a dataset (all of data/ if no file)
+
+AI commands in Copilot Chat (only when needed):
+  /hk-plan          problem → one-page PLAN.md (lead only)
+  /hk-fix           fix a merge conflict
+  /hk-review        quick review of shared code (optional)
+
+Every task: hk start B-01 → code → hk push → hk pr → teammate approves → squash merge
+EOF
+}
+
+cmd_start() {
+  local id row title name needs
+  id=$(printf '%s' "${1:-}" | tr '[:lower:]' '[:upper:]')
+  case "$id" in
+    [A-Z]-[0-9][0-9]) ;;
+    "") fail "Which task? For example: hk start B-01" ;;
+    *) fail "Task IDs look like B-01. Check PLAN.md." ;;
+  esac
+  # New files may come along; changes to existing files belong to the current task.
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    fail "You have unsaved changes. Push them first (hk push), or set them aside (git stash)."
+  fi
+  fetch
+  git rev-parse --verify --quiet "$REMOTE/$MAIN" >/dev/null || fail "No $MAIN branch on GitHub yet. Ask the lead."
+  row=$(plan_row "$id")
+  title=$(field "$row" 1)
+
+  name=$(git for-each-ref --count=1 --format='%(refname:short)' "refs/heads/task/$id-*" "refs/heads/task/$id")
+  if [ -n "$name" ]; then
+    git switch --quiet "$name"
+    say "Back on $name."
+  else
+    name=$(git for-each-ref --count=1 --format='%(refname:short)' \
+      "refs/remotes/$REMOTE/task/$id-*" "refs/remotes/$REMOTE/task/$id")
+    if [ -n "$name" ]; then
+      git switch --quiet --track "$name"
+      say "Picked up ${name#"$REMOTE"/} from GitHub."
+    else
+      name="task/$id"
+      if [ -n "$title" ]; then name="$name-$(slug "$title")"; fi
+      git switch --quiet --no-track -c "$name" "$REMOTE/$MAIN"
+      say "Started $name from the team's latest work."
+    fi
+  fi
+
+  if [ -z "$row" ]; then
+    say "Note: $id isn't in PLAN.md yet."
+    return 0
+  fi
+  say "Task:      $title"
+  say "Done when: $(field "$row" 4)"
+  needs=$(field "$row" 3)
+  case "$needs" in
+    ""|"-"|"–") ;;
+    *) say "Needs:     $needs (see what's done: hk status)" ;;
+  esac
+}
+
+cmd_sync() {
+  fetch
+  if [ "$(current_branch)" = "$MAIN" ]; then
+    git merge --quiet --ff-only "$REMOTE/$MAIN" || fail "Your $MAIN has changes that aren't on GitHub. Ask the lead."
+    say "$MAIN is up to date."
+    return 0
+  fi
+  merge_main
+  say "Up to date: you now have the team's latest work."
+}
+
+cmd_push() {
+  local url
+  push_work "${1:-}"
+  say "Pushed $(current_branch)."
+  if have gh && url=$(gh pr view --json url -q .url 2>/dev/null) && [ -n "$url" ]; then
+    say "Your pull request now has these changes: $url"
+  else
+    say "When the task is done: hk pr"
+  fi
+}
+
+cmd_pr() {
+  local id row title pr_title body url
+  push_work "${1:-}"
+  id=$(task_id)
+  row=$(plan_row "$id")
+  title=$(field "$row" 1)
+  pr_title="${title:-$(current_branch)}"
+  if [ -n "$id" ]; then pr_title="$id: $pr_title"; fi
+  body="Task: ${id:-not in PLAN.md}
+Done when: $(field "$row" 4)
+
+- [ ] Done-when is met
+- [ ] I ran it on my laptop"
+
+  if have gh && gh auth status >/dev/null 2>&1; then
+    if url=$(gh pr view --json url -q .url 2>/dev/null) && [ -n "$url" ]; then
+      say "Already open, now with your latest changes: $url"
+      return 0
+    fi
+    url=$(gh pr create --base "$MAIN" --title "$pr_title" --body "$body") \
+      || fail "Couldn't open the pull request. Try: gh pr create"
+    say "Pull request opened: $url"
+    say "Ask a teammate to approve it. Changes to shared files (contracts/, config) need the lead."
+  else
+    say "Open this link to create the pull request. Title: $pr_title"
+    say "  $(compare_url)"
+    say "(To do this automatically next time: gh auth login)"
+  fi
+}
+
+cmd_status() {
+  local merged branches id task who state n_done=0 n_doing=0 n_todo=0
+  [ -f "$PLAN" ] || fail "No PLAN.md yet. The lead makes it with /hk-plan in Copilot Chat."
+  fetch
+  merged=$(git log "$REMOTE/$MAIN" --format=%s)
+  branches=$(git for-each-ref --format='%(refname:short)' "refs/remotes/$REMOTE/task/")
+  printf '%-6s %-12s %-12s %s\n' "ID" "Who" "State" "Task"
+  while IFS='|' read -r _ id task who _; do
+    id=$(trim "$id")
+    case "$id" in [A-Z]-[0-9][0-9]) ;; *) continue ;; esac
+    if grep -Eq "^$id:|task/$id(-|$| )" <<<"$merged"; then
+      state="done"; n_done=$((n_done + 1))
+    elif grep -Eq "task/$id(-|$)" <<<"$branches"; then
+      state="in progress"; n_doing=$((n_doing + 1))
+    else
+      state="not started"; n_todo=$((n_todo + 1))
+    fi
+    printf '%-6s %-12s %-12s %s\n' "$id" "$(trim "$who")" "$state" "$(trim "$task")"
+  done < "$PLAN"
+  say ""
+  say "$n_done done · $n_doing in progress · $n_todo not started"
+}
+
+cmd_run() {
+  local py
+  py=$(find_python)
+  "$py" -c 'import fastapi, uvicorn' >/dev/null 2>&1 \
+    || fail "Install the packages first: pip install -r backend/requirements.txt"
+  say "API: http://localhost:8000/docs   (stop it with Ctrl+C)"
+  exec "$py" -m uvicorn backend.app.main:app --reload \
+    --reload-dir backend --reload-dir contracts --reload-dir ml "$@"
+}
+
+cmd_data() {
+  local py
+  py=$(find_python)
+  "$py" "$HK_DIR/scripts/hk_data.py" "$@"
+}
+
+main() {
+  local cmd="${1:-help}"
+  if [ "$#" -gt 0 ]; then shift; fi
+  case "$cmd" in
+    help|-h|--help) cmd_help ;;
+    start|sync|push|pr|status|run|data)
+      git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Run this inside the project folder."
+      cd "$(git rev-parse --show-toplevel)"
+      "cmd_$cmd" "$@"
+      ;;
+    *) fail "Unknown command '$cmd'. Run: hk help" ;;
+  esac
+}
+
+main "$@"

@@ -1,0 +1,10 @@
+# Settings for the code tidier (ruff) and the tests (pytest).
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["*.ipynb"]  # notebooks are scratch work: never tidied or checked
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["backend/tests"]
+addopts = "-q"

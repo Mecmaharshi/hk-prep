@@ -1,0 +1,41 @@
+# Runs on every pull request. A red X means something broke: click it to see what.
+# It only fails on real breakage, never on style.
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install
+        run: pip install -r backend/requirements.txt
+
+      - name: Python code has no crash bugs
+        run: ruff check --select E9,F63,F7,F82 --output-format github .
+
+      - name: Backend tests pass
+        run: pytest
+
+      - name: Frontend builds
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build

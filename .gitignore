@@ -1,0 +1,26 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Frontend
+node_modules/
+dist/
+
+# Data stays on each laptop (hk data makes a summary everyone can read)
+data/*
+!data/README.md
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
