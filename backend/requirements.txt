@@ -2,5 +2,8 @@
 fastapi>=0.115
 uvicorn[standard]>=0.32
 httpx>=0.27
+python-dotenv>=1.0       # reads .env
+anthropic>=2.5           # Claude (backend/app/llm/claude.py)
+openai>=2.0              # OpenAI and compatible services (backend/app/llm/openai_.py)
 pytest>=8.0
 ruff>=0.8

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# hk: the team's commands for the hackathon (git, running the API, data summary).
+# hk: the team's commands for the hackathon (git, running the API, the board, checks).
 # Plain scripts under the hood: instant, and no AI tokens. Run "hk help" for the list.
 set -euo pipefail
 
@@ -7,6 +7,7 @@ MAIN="${HK_MAIN:-main}"
 REMOTE="${HK_REMOTE:-origin}"
 PLAN="PLAN.md"
 MAX_FILE_MB=5
+PORT="${HK_PORT:-8000}"
 HK_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 say()  { printf '%s\n' "$*"; }
@@ -21,33 +22,68 @@ current_branch() { git rev-parse --abbrev-ref HEAD; }
 task_id() { current_branch | sed -n 's#^task/\([A-Z]-[0-9][0-9]\).*#\1#p'; }
 is_dirty() { [ -n "$(git status --porcelain)" ]; }
 field() { printf '%s' "$1" | cut -d'|' -f"$2"; }
+me() { git config user.name 2>/dev/null || true; }
 
 # The Python to use: the active virtual environment first, then python3, then python.
 # Running each one also skips the fake "python3" that Windows opens the Store with.
 find_python() {
   local candidate
   for candidate in "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin/python}" \
-    "${VIRTUAL_ENV:+$VIRTUAL_ENV/Scripts/python}" python3 python; do
+    "${VIRTUAL_ENV:+$VIRTUAL_ENV/Scripts/python}" .venv/bin/python .venv/Scripts/python python3 python; do
     [ -n "$candidate" ] || continue
-    if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 9))' >/dev/null 2>&1; then
+    if "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
       printf '%s' "$candidate"
       return 0
     fi
   done
-  fail "Python 3 not found. Install it, or activate the project's .venv."
+  fail "Python 3.10+ not found. Install it, or activate the project's .venv."
 }
 
 fetch() {
   git fetch --quiet --prune "$REMOTE" || fail "Can't reach GitHub. Check the internet, then try again."
 }
 
-# One PLAN.md row as "task|who|needs|done when". Empty if the ID isn't there.
+# One PLAN.md row as "task|for|files|needs|done when". Empty if the ID isn't there.
+# Columns: | ID | Task | For | Files | Needs | Done when |
 plan_row() {
   if [ -z "$1" ] || [ ! -f "$PLAN" ]; then return 0; fi
   awk -F'|' -v id="$1" '
-    function t(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
-    t($2) == id { print t($3) "|" t($4) "|" t($5) "|" t($6); exit }
+    function t(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); gsub(/`/, "", s); return s }
+    t($2) == id { print t($3) "|" t($4) "|" t($5) "|" t($6) "|" t($7); exit }
   ' "$PLAN"
+}
+
+# Does a changed file belong to the task's Files list? Entries: a file, a folder, or a glob.
+in_files() {
+  local file="$1" list="$2" pattern
+  IFS=',' read -ra patterns <<<"$list"
+  for pattern in "${patterns[@]}"; do
+    pattern=$(trim "$pattern"); pattern=${pattern#./}
+    [ -n "$pattern" ] || continue
+    case "$file" in
+      "$pattern" | "${pattern%/}"/*) return 0 ;;
+    esac
+    # shellcheck disable=SC2053
+    [[ "$file" == $pattern ]] && return 0
+  done
+  return 1
+}
+
+# Say so when the push touches files outside the task's Files column. A warning, never a block.
+warn_outside_files() {
+  local id row files changed outside=""
+  id=$(task_id); row=$(plan_row "$id"); files=$(field "$row" 3)
+  case "$files" in ""|"-"|"–") return 0 ;; esac
+  changed=$(git diff --name-only "$REMOTE/$MAIN"...HEAD 2>/dev/null || true)
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    in_files "$file" "$files" || outside="$outside
+  $file"
+  done <<<"$changed"
+  if [ -n "$outside" ]; then
+    say "Heads-up: these files aren't in $id's Files list in PLAN.md:$outside"
+    say "Fine if it's on purpose: say why in the pull request. Otherwise another task may own them."
+  fi
 }
 
 # Bring the team's latest main into this branch. Stops with clear steps on a conflict.
@@ -130,6 +166,7 @@ push_work() {
   fi
   fetch
   merge_main
+  warn_outside_files
   git push --quiet -u "$REMOTE" HEAD 2>/dev/null || fail "Push failed. Run hk sync, then hk push again."
 }
 
@@ -139,33 +176,45 @@ compare_url() {
   printf '%s/compare/%s...%s?expand=1' "$url" "$MAIN" "$(current_branch)"
 }
 
+open_url() {
+  case "$(uname -s)" in
+    Darwin) open "$1" ;;
+    MINGW*|MSYS*|CYGWIN*) start "" "$1" 2>/dev/null || cmd //c start "" "$1" ;;
+    *) xdg-open "$1" >/dev/null 2>&1 || say "Open: $1" ;;
+  esac
+}
+
 cmd_help() {
-  cat <<'EOF'
+  cat <<EOF
 Plain commands (instant, no AI):
-  hk help           list all commands
-  hk start B-01     start task B-01 on a fresh branch
-  hk sync           get the team's latest work
+  hk doctor         is this laptop ready? (run it before the event)
+  hk status         who is doing what; which tasks are free
+  hk start B-01     claim task B-01 on a fresh branch
   hk push           tidy, sync and push your work
   hk pr             open a pull request for your task
-  hk status         who is doing what
-  hk run            start the API (http://localhost:8000/docs)
+  hk sync           get the team's latest work
+  hk run            start the API (http://localhost:$PORT/docs) and the board
+  hk board          open the team board (http://localhost:$PORT/board)
+  hk web            start the website (frontend/)
   hk data [file]    quick summary of a dataset (all of data/ if no file)
 
-AI commands in Copilot Chat (only when needed):
+AI commands in Copilot Chat (one chat per task):
+  /hk-task B-01     do the task you started: it reads the row in PLAN.md and stays in its files
   /hk-plan          problem → one-page PLAN.md (lead only)
   /hk-fix           fix a merge conflict
   /hk-review        quick review of shared code (optional)
 
-Every task: hk start B-01 → code → hk push → hk pr → teammate approves → squash merge
+Every task: hk start B-01 → /hk-task B-01 → hk push → hk pr → teammate approves → squash merge
 EOF
 }
 
 cmd_start() {
-  local id row title name needs
+  local id row title name owner join=""
   id=$(printf '%s' "${1:-}" | tr '[:lower:]' '[:upper:]')
+  [ "${2:-}" = "--join" ] && join=1
   case "$id" in
     [A-Z]-[0-9][0-9]) ;;
-    "") fail "Which task? For example: hk start B-01" ;;
+    "") fail "Which task? For example: hk start B-01   (free tasks: hk status)" ;;
     *) fail "Task IDs look like B-01. Check PLAN.md." ;;
   esac
   # New files may come along; changes to existing files belong to the current task.
@@ -185,13 +234,22 @@ cmd_start() {
     name=$(git for-each-ref --count=1 --format='%(refname:short)' \
       "refs/remotes/$REMOTE/task/$id-*" "refs/remotes/$REMOTE/task/$id")
     if [ -n "$name" ]; then
+      owner=$(git log -1 --format=%an "$name" 2>/dev/null || true)
+      if [ -n "$owner" ] && [ "$owner" != "$(me)" ] && [ -z "$join" ]; then
+        say "$owner is already on $id (branch ${name#"$REMOTE"/})."
+        say "Pick a free task (hk status), or if you two agreed to share it: hk start $id --join"
+        exit 1
+      fi
       git switch --quiet --track "$name"
       say "Picked up ${name#"$REMOTE"/} from GitHub."
     else
       name="task/$id"
       if [ -n "$title" ]; then name="$name-$(slug "$title")"; fi
       git switch --quiet --no-track -c "$name" "$REMOTE/$MAIN"
-      say "Started $name from the team's latest work."
+      # Claim it right away, so hk status and the board show it as yours.
+      git commit --quiet --allow-empty -m "$id: start"
+      git push --quiet -u "$REMOTE" HEAD 2>/dev/null || say "Note: couldn't tell GitHub yet; hk push will."
+      say "Started $name. It's yours now: the team can see it in hk status."
     fi
   fi
 
@@ -199,13 +257,16 @@ cmd_start() {
     say "Note: $id isn't in PLAN.md yet."
     return 0
   fi
+  say ""
   say "Task:      $title"
-  say "Done when: $(field "$row" 4)"
-  needs=$(field "$row" 3)
-  case "$needs" in
+  say "Files:     $(field "$row" 3)"
+  say "Done when: $(field "$row" 5)"
+  case "$(field "$row" 4)" in
     ""|"-"|"–") ;;
-    *) say "Needs:     $needs (see what's done: hk status)" ;;
+    *) say "Needs:     $(field "$row" 4) (see what's done: hk status)" ;;
   esac
+  say ""
+  say "Next, in Copilot Chat (new chat): /hk-task $id"
 }
 
 cmd_sync() {
@@ -239,10 +300,12 @@ cmd_pr() {
   pr_title="${title:-$(current_branch)}"
   if [ -n "$id" ]; then pr_title="$id: $pr_title"; fi
   body="Task: ${id:-not in PLAN.md}
-Done when: $(field "$row" 4)
+Files: $(field "$row" 3)
+Done when: $(field "$row" 5)
 
 - [ ] Done-when is met
-- [ ] I ran it on my laptop"
+- [ ] I ran it on my laptop
+- [ ] Only this task's files changed (or I say why below)"
 
   if have gh && gh auth status >/dev/null 2>&1; then
     if url=$(gh pr view --json url -q .url 2>/dev/null) && [ -n "$url" ]; then
@@ -256,31 +319,32 @@ Done when: $(field "$row" 4)
   else
     say "Open this link to create the pull request. Title: $pr_title"
     say "  $(compare_url)"
-    say "(To do this automatically next time: gh auth login)"
+    say "(To do this automatically next time: install the GitHub CLI and run gh auth login)"
   fi
 }
 
 cmd_status() {
-  local merged branches id task who state n_done=0 n_doing=0 n_todo=0
+  local merged branches id task for_ who state line n_done=0 n_doing=0 n_todo=0
   [ -f "$PLAN" ] || fail "No PLAN.md yet. The lead makes it with /hk-plan in Copilot Chat."
   fetch
-  merged=$(git log "$REMOTE/$MAIN" --format=%s)
-  branches=$(git for-each-ref --format='%(refname:short)' "refs/remotes/$REMOTE/task/")
-  printf '%-6s %-12s %-12s %s\n' "ID" "Who" "State" "Task"
-  while IFS='|' read -r _ id task who _; do
+  merged=$(git log "$REMOTE/$MAIN" --format='%s|%an')
+  branches=$(git for-each-ref --format='%(refname:short)|%(authorname)' "refs/remotes/$REMOTE/task/")
+  printf '%-6s %-8s %-14s %-12s %s\n' "ID" "For" "Who" "State" "Task"
+  while IFS='|' read -r _ id task for_ _; do
     id=$(trim "$id")
     case "$id" in [A-Z]-[0-9][0-9]) ;; *) continue ;; esac
-    if grep -Eq "^$id:|task/$id(-|$| )" <<<"$merged"; then
-      state="done"; n_done=$((n_done + 1))
-    elif grep -Eq "task/$id(-|$)" <<<"$branches"; then
-      state="in progress"; n_doing=$((n_doing + 1))
+    who=""
+    if line=$(grep -E "^$id:|task/$id(-|$| )" <<<"$merged" | head -1) && [ -n "$line" ]; then
+      state="done"; who=${line##*|}; n_done=$((n_done + 1))
+    elif line=$(grep -E "task/$id(-|$|\|)" <<<"$branches" | head -1) && [ -n "$line" ]; then
+      state="in progress"; who=${line##*|}; n_doing=$((n_doing + 1))
     else
-      state="not started"; n_todo=$((n_todo + 1))
+      state="free"; n_todo=$((n_todo + 1))
     fi
-    printf '%-6s %-12s %-12s %s\n' "$id" "$(trim "$who")" "$state" "$(trim "$task")"
+    printf '%-6s %-8s %-14s %-12s %s\n' "$id" "$(trim "$for_")" "${who:0:14}" "$state" "$(trim "$task")"
   done < "$PLAN"
   say ""
-  say "$n_done done · $n_doing in progress · $n_todo not started"
+  say "$n_done done · $n_doing in progress · $n_todo free   (more detail: hk board)"
 }
 
 cmd_run() {
@@ -288,9 +352,31 @@ cmd_run() {
   py=$(find_python)
   "$py" -c 'import fastapi, uvicorn' >/dev/null 2>&1 \
     || fail "Install the packages first: pip install -r backend/requirements.txt"
-  say "API: http://localhost:8000/docs   (stop it with Ctrl+C)"
-  exec "$py" -m uvicorn backend.app.main:app --reload \
+  say "API:   http://localhost:$PORT/docs"
+  say "Board: http://localhost:$PORT/board   (stop with Ctrl+C)"
+  exec "$py" -m uvicorn backend.app.main:app --reload --port "$PORT" \
     --reload-dir backend --reload-dir contracts --reload-dir ml "$@"
+}
+
+cmd_board() {
+  local url="http://localhost:$PORT/board"
+  if ! curl -fs --max-time 2 "http://localhost:$PORT/health" >/dev/null 2>&1; then
+    say "The API isn't running. In another terminal: hk run"
+  fi
+  say "Board: $url"
+  open_url "$url"
+}
+
+cmd_web() {
+  [ -f frontend/package.json ] || fail "No frontend yet (frontend/package.json is missing)."
+  have npm || fail "Install Node.js first: https://nodejs.org"
+  cd frontend
+  if [ ! -d node_modules ]; then
+    say "First time: installing the website's packages (a minute or two)..."
+    npm install --no-fund --no-audit
+  fi
+  say "Website: the address appears below (usually http://localhost:5173). Stop with Ctrl+C."
+  exec npm run dev -- "$@"
 }
 
 cmd_data() {
@@ -299,12 +385,89 @@ cmd_data() {
   "$py" "$HK_DIR/scripts/hk_data.py" "$@"
 }
 
+# Is this laptop ready? Each line: ✓ fine · ! works, but could be better · ✗ must fix.
+cmd_doctor() {
+  local problems=0 py out
+  ok()   { printf '  ✓ %s\n' "$1"; }
+  meh()  { printf '  ! %s\n' "$1"; if [ -n "${2:-}" ]; then printf '      → %s\n' "$2"; fi; }
+  bad()  { printf '  ✗ %s\n' "$1"; if [ -n "${2:-}" ]; then printf '      → %s\n' "$2"; fi; problems=$((problems + 1)); }
+  say "Git and GitHub"
+  ok "git $(git --version | sed 's/git version //')"
+  if [ -n "$(me)" ] && [ -n "$(git config user.email 2>/dev/null)" ]; then
+    ok "git knows you as $(me)"
+  else
+    bad "git doesn't know your name/email (your tasks would show as nobody's)" \
+      'git config --global user.name "Your Name" && git config --global user.email "you@example.com"'
+  fi
+  if git remote get-url "$REMOTE" >/dev/null 2>&1; then
+    if git ls-remote --exit-code -q "$REMOTE" HEAD >/dev/null 2>&1; then
+      ok "GitHub reachable ($(git remote get-url "$REMOTE" | sed -e 's#.*github.com[:/]##' -e 's#\.git$##'))"
+    else
+      bad "can't reach GitHub ($REMOTE)" "check the internet, or ask the lead for repo access"
+    fi
+  else
+    meh "no '$REMOTE' remote: this isn't the team repo yet" "clone the team repo from GitHub and run hk doctor there"
+  fi
+  if have gh; then
+    if gh auth status >/dev/null 2>&1; then ok "GitHub CLI logged in"; else meh "GitHub CLI not logged in" "gh auth login"; fi
+  else
+    meh "GitHub CLI (gh) not installed: hk pr will give you a link to click instead" "https://cli.github.com"
+  fi
+
+  say "Python"
+  if py=$(find_python 2>/dev/null); then
+    ok "python $("$py" -c 'import sys; print(".".join(map(str, sys.version_info[:3])))') ($py)"
+    if [ -d .venv ] && [ -z "${VIRTUAL_ENV:-}" ]; then
+      meh "the .venv isn't activated in this terminal" "source .venv/Scripts/activate   (Mac/Linux: source .venv/bin/activate)"
+    fi
+    if "$py" -c 'import fastapi, uvicorn, dotenv' >/dev/null 2>&1; then
+      ok "backend packages installed"
+    else
+      bad "backend packages missing" "pip install -r backend/requirements.txt"
+    fi
+    for pkg in anthropic openai; do
+      if out=$("$py" -c "import $pkg" 2>&1); then
+        ok "$pkg SDK loads"
+      else
+        meh "$pkg SDK doesn't load on this laptop, so LLM answers will be fake here" "$(printf '%s' "$out" | tail -1 | cut -c1-110)"
+      fi
+    done
+    "$py" -c 'import ruff' >/dev/null 2>&1 || have ruff || meh "ruff missing: hk push won't tidy Python files" "pip install ruff"
+    "$py" -c 'import pandas' >/dev/null 2>&1 || meh "pandas missing: hk data won't work (only data/ML people need it)" "pip install -r ml/requirements.txt"
+  else
+    bad "Python 3.10+ not found" "install Python 3.12 from python.org, then: python -m venv .venv"
+  fi
+
+  if [ -f frontend/package.json ]; then
+    say "Website"
+    if have node && have npm; then
+      ok "node $(node --version)"
+      [ -d frontend/node_modules ] && ok "website packages installed" || meh "website packages not installed yet" "hk web does it the first time"
+    else
+      bad "Node.js not installed (needed for the website)" "https://nodejs.org (LTS)"
+    fi
+  fi
+
+  say "Project"
+  if [ -f .env ]; then ok ".env found (LLM provider: $(grep -E '^LLM_PROVIDER=' .env | cut -d= -f2 | cut -d'#' -f1 | tr -d ' '))"; else meh "no .env: the LLM gives fake answers" "copy .env.example to .env and add the key the contest gives you"; fi
+  [ -f "$PLAN" ] && ok "PLAN.md exists" || meh "no PLAN.md yet (the lead makes it at the start with /hk-plan)"
+  if have curl; then ok "curl present"; else meh "curl missing: hk board can't check the API"; fi
+
+  say ""
+  if [ "$problems" -eq 0 ]; then
+    say "Ready. Next: hk run, then hk board."
+  else
+    say "$problems thing(s) to fix (the ✗ lines). Then run hk doctor again."
+    exit 1
+  fi
+}
+
 main() {
   local cmd="${1:-help}"
   if [ "$#" -gt 0 ]; then shift; fi
   case "$cmd" in
     help|-h|--help) cmd_help ;;
-    start|sync|push|pr|status|run|data)
+    start|sync|push|pr|status|run|data|doctor|board|web)
       git rev-parse --is-inside-work-tree >/dev/null 2>&1 || fail "Run this inside the project folder."
       cd "$(git rev-parse --show-toplevel)"
       "cmd_$cmd" "$@"

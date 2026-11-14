@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team board</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --line: #e3e6ea; --ink: #1b1f24; --ink-2: #4b5563; --ink-3: #7b8594;
+    --accent: #2563eb; --done: #15803d; --doing: #b45309; --free: #6b7280; --bad: #b91c1c;
+    --done-bg: #dcfce7; --doing-bg: #fef3c7; --free-bg: #e5e7eb; --bad-bg: #fee2e2;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --line: #2a3038; --ink: #e8ebef; --ink-2: #aab3bf; --ink-3: #7d8794;
+      --accent: #60a5fa; --done: #4ade80; --doing: #fbbf24; --free: #9ca3af; --bad: #f87171;
+      --done-bg: #14301f; --doing-bg: #3a2a0c; --free-bg: #262b33; --bad-bg: #3b1515;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 16px; padding: 18px 16px 0; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; }
+  header h1 { font-size: 20px; margin: 0; }
+  header .meta { color: var(--ink-3); font-size: 13px; margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  nav { display: flex; gap: 4px; padding: 12px 16px 0; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+  nav button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--ink-2); padding: 8px 12px; font: inherit; cursor: pointer; }
+  nav button.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  nav button:hover { color: var(--ink); }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: .03em; }
+  .big { font-size: 40px; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+  .sub { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
+  .bar { display: flex; gap: 2px; height: 14px; margin: 10px 0 6px; border-radius: 4px; overflow: hidden; background: var(--free-bg); }
+  .bar div { height: 100%; }
+  .bar .d { background: var(--done); } .bar .p { background: var(--doing); } .bar .f { background: transparent; }
+  .legend { display: flex; gap: 16px; color: var(--ink-2); font-size: 13px; flex-wrap: wrap; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+  .dot.done { background: var(--done); } .dot.doing { background: var(--doing); } .dot.free { background: var(--free); } .dot.bad { background: var(--bad); }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .pill.done { background: var(--done-bg); color: var(--done); } .pill.doing { background: var(--doing-bg); color: var(--doing); }
+  .pill.free { background: var(--free-bg); color: var(--ink-2); } .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { border-top: 0; font-size: 12px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; background: var(--card); }
+  tr.click { cursor: pointer; } tr.click:hover td { background: color-mix(in srgb, var(--accent) 6%, var(--card)); }
+  code, .mono { font-family: var(--mono); font-size: 13px; }
+  pre { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; overflow: auto; font-family: var(--mono); font-size: 13px; line-height: 1.5; margin: 0; }
+  .muted { color: var(--ink-3); } .warn { color: var(--doing); } .err { color: var(--bad); }
+  .chips { display: flex; gap: 6px; margin: 4px 0 12px; flex-wrap: wrap; }
+  .chips button { border: 1px solid var(--line); background: var(--card); color: var(--ink-2); border-radius: 999px; padding: 3px 11px; font: inherit; font-size: 13px; cursor: pointer; }
+  .chips button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .lines p { margin: 4px 0; } .lines b { color: var(--ink-2); font-weight: 600; display: inline-block; min-width: 86px; }
+  button.act { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 7px 14px; font: inherit; cursor: pointer; }
+  input.text { width: 100%; max-width: 520px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .md h1, .md h2, .md h3 { margin: 14px 0 6px; } .md table { margin: 8px 0; } .md li { margin: 2px 0; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  a { color: var(--accent); }
+  @media (max-width: 640px) { .big { font-size: 32px; } th:nth-child(n+6), td:nth-child(n+6) { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Team board</h1>
+  <span class="muted" id="plan-title"></span>
+  <div class="meta"><span id="updated">loading…</span><button class="act" id="refresh" style="padding:4px 10px">Refresh</button></div>
+</header>
+<nav id="tabs"></nav>
+<main id="main"></main>
+<div id="toast"></div>
+
+<script>
+const TABS = [
+  ["overview", "Overview"], ["plan", "Plan"], ["team", "Team"], ["api", "API"],
+  ["llm", "LLM"], ["data", "Data"], ["checks", "Checks"],
+];
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let current = location.hash.slice(1) || "overview";
+let filter = "all";
+let lastLoaded = 0;
+
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1400); }
+async function get(path, opts) { const r = await fetch(path, opts); if (!r.ok) throw new Error(r.status + " " + r.statusText); return r.json(); }
+const stateClass = (s) => s === "done" ? "done" : s === "in progress" ? "doing" : "free";
+const pill = (s) => `<span class="pill ${stateClass(s)}">${esc(s)}</span>`;
+const ago = (iso) => { if (!iso) return ""; const m = Math.round((Date.now() - new Date(iso)) / 60000); return m < 60 ? `${m} min ago` : m < 2880 ? `${Math.round(m / 60)} h ago` : `${Math.round(m / 1440)} d ago`; };
+const note = (text, cls = "muted") => text ? `<p class="${cls}">${esc(text)}</p>` : "";
+const errCard = (title, e) => `<div class="card"><h3>${esc(title)}</h3><p class="err">${esc(e.error || e)}</p></div>`;
+
+function renderTabs() {
+  $("#tabs").innerHTML = TABS.map(([id, label]) => `<button data-tab="${id}" class="${id === current ? "on" : ""}">${label}</button>`).join("");
+  $("#tabs").querySelectorAll("button").forEach((b) => b.onclick = () => { current = b.dataset.tab; location.hash = current; renderTabs(); load(); });
+}
+
+// ---------- overview ----------
+function overview(d) {
+  const p = d.plan || {}, c = p.counts || {}, total = (c.done || 0) + (c.in_progress || 0) + (c.free || 0);
+  const t = d.team || {}, m = d.model || {}, l = d.llm || {}, g = d.github || {};
+  const waiting = (g.prs || []).filter((pr) => pr.review !== "approved").length;
+  const pct = (n) => total ? (100 * n / total).toFixed(1) + "%" : "0%";
+  const hours = t.hours_left == null ? "–" : t.hours_left < 0 ? "0" : Math.floor(t.hours_left) + "h";
+  return `
+  <div class="grid">
+    <div class="card"><h3>Done</h3><div class="big">${c.done ?? 0}<span class="muted" style="font-size:18px"> / ${total}</span></div>
+      <div class="bar"><div class="d" style="width:${pct(c.done || 0)}"></div><div class="p" style="width:${pct(c.in_progress || 0)}"></div></div>
+      <div class="legend"><span><i class="dot done"></i>${c.done ?? 0} done</span><span><i class="dot doing"></i>${c.in_progress ?? 0} in progress</span><span><i class="dot free"></i>${c.free ?? 0} free</span></div></div>
+    <div class="card"><h3>Time left</h3><div class="big">${hours}</div><div class="sub">${esc(t.ends ? "ends " + t.ends : "add an Ends: line to TEAM.md")}</div></div>
+    <div class="card"><h3>Model</h3><div class="big" style="font-size:28px">${esc(m.mode || "?")}</div><div class="sub">${esc(m.mode === "real" ? "ml/predict.py is live" : m.note || "")}</div></div>
+    <div class="card"><h3>LLM</h3><div class="big" style="font-size:28px">${esc(l.provider || "?")}</div><div class="sub">${esc(l.provider === "fake" ? l.note || "" : l.model || "")}</div></div>
+    <div class="card"><h3>Pull requests</h3><div class="big ${waiting ? "warn" : ""}">${(g.prs || []).length}${waiting ? `<span style="font-size:16px"> · ${waiting} waiting for review</span>` : ""}</div><div class="sub">${esc(g.note || (g.ci ? `main checks: ${g.ci.conclusion || g.ci.status}` : ""))}</div></div>
+  </div>
+  ${p.header && p.header.Goal ? `<div class="card lines"><p><b>Goal</b> ${esc(p.header.Goal)}</p><p><b>Backup</b> ${esc(p.header.Backup || "")}</p><p><b>Demo</b> ${esc(p.header.Demo || "")}</p><p><b>Watch out</b> ${esc(p.header["Watch out"] || "")}</p></div>` : note(p.note || p.error)}
+  <h3 class="muted" style="margin:18px 0 8px">In progress now</h3>
+  ${taskTable((p.tasks || []).filter((x) => x.state === "in progress"), "Nobody is on a task right now. Free ones are in the Plan tab.")}`;
+}
+
+// ---------- plan ----------
+function taskTable(tasks, empty) {
+  if (!tasks.length) return `<p class="muted">${esc(empty)}</p>`;
+  return `<table><thead><tr><th>ID</th><th>State</th><th>For</th><th>Who</th><th>Task</th><th>Files</th><th>Done when</th></tr></thead><tbody>
+  ${tasks.map((t) => `<tr class="click" data-id="${esc(t.id)}" title="Click to copy: hk start ${esc(t.id)}">
+    <td class="mono">${esc(t.id)}</td><td>${pill(t.state)}</td><td>${esc(t.for)}</td>
+    <td>${esc(t.who)}${t.at ? `<div class="muted" style="font-size:12px">${ago(t.at)}</div>` : ""}</td>
+    <td>${esc(t.task)}${t.needs && t.needs !== "–" && t.needs !== "-" ? `<div class="muted" style="font-size:12px">needs ${esc(t.needs)}</div>` : ""}</td>
+    <td class="mono" style="font-size:12px">${esc(t.files).split(",").map((f) => esc(f.trim())).join("<br>")}</td><td>${esc(t.done_when)}</td></tr>`).join("")}
+  </tbody></table>`;
+}
+function plan(p) {
+  if (p.error) return errCard("Plan", p);
+  const me = (p.me || "").toLowerCase();
+  const tasks = (p.tasks || []).filter((t) =>
+    filter === "all" || (filter === "free" && t.state === "free") || (filter === "anyone" && t.state === "free" && /anyone/i.test(t.for)) ||
+    (filter === "mine" && me && (t.who || "").toLowerCase() === me));
+  const h = p.header || {};
+  const chips = [["all", "All"], ["free", "Free"], ["anyone", "Free, for anyone"], ["mine", p.me ? `Mine (${p.me})` : "Mine"]];
+  return `${h.Goal ? `<div class="card lines" style="margin-bottom:12px"><p><b>Goal</b> ${esc(h.Goal)}</p><p><b>How</b> ${esc(h.How || "")}</p><p><b>Backup</b> ${esc(h.Backup || "")}</p><p><b>Demo</b> ${esc(h.Demo || "")}</p><p><b>Watch out</b> ${esc(h["Watch out"] || "")}</p>${h.Times ? `<p><b>Times</b> ${esc(h.Times)}</p>` : ""}</div>` : ""}
+  ${note(p.note, "warn")}
+  <div class="chips">${chips.map(([k, l]) => `<button data-f="${k}" class="${filter === k ? "on" : ""}">${l}</button>`).join("")}<span class="muted" style="align-self:center;font-size:13px">from ${esc(p.source || "")} · click a row to copy its hk start command</span></div>
+  ${taskTable(tasks, "No tasks match.")}`;
+}
+
+// ---------- team ----------
+function team(d) {
+  const t = d.team || {}, tasks = (d.plan && d.plan.tasks) || [];
+  if (t.error) return errCard("Team", t);
+  const now = (name) => tasks.filter((x) => x.state === "in progress" && name && (x.who || "").toLowerCase() === name.toLowerCase());
+  const done = (name) => tasks.filter((x) => x.state === "done" && name && (x.who || "").toLowerCase() === name.toLowerCase()).length;
+  const known = new Set((t.people || []).map((p) => p.name.toLowerCase()));
+  const others = [...new Set(tasks.filter((x) => x.who && !known.has(x.who.toLowerCase())).map((x) => x.who))];
+  return `<p class="muted">${esc(t.event || "")}${t.ends ? ` · ends ${esc(t.ends)}` : ""}</p>
+  <table><thead><tr><th>Name</th><th>Role</th><th>Good at</th><th>Hours</th><th>On now</th><th>Done</th></tr></thead><tbody>
+  ${(t.people || []).map((p) => `<tr><td><b>${esc(p.name || "—")}</b></td><td>${esc(p.role)}</td><td>${esc(p.good_at)}</td><td>${esc(p.hours)}</td>
+    <td>${now(p.name).map((x) => `<span class="mono">${esc(x.id)}</span> ${esc(x.task)} <span class="muted">(${ago(x.at)})</span>`).join("<br>") || "<span class='muted'>–</span>"}</td><td>${done(p.name)}</td></tr>`).join("")}
+  ${others.map((n) => `<tr><td><b>${esc(n)}</b> <span class="muted">(not in TEAM.md: git name differs?)</span></td><td></td><td></td><td></td><td>${now(n).map((x) => `<span class="mono">${esc(x.id)}</span> ${esc(x.task)}`).join("<br>")}</td><td>${done(n)}</td></tr>`).join("")}
+  </tbody></table>
+  <p class="muted" style="font-size:13px">"On now" matches the git user.name on each laptop to the Name column. Different spelling → the task shows under its git name.</p>`;
+}
+
+// ---------- api ----------
+function api(d) {
+  const m = d.model || {}, eps = d.endpoints || [], shapes = d.shapes || {};
+  const shape = (name) => shapes[name] ? `<table style="margin-top:6px"><thead><tr><th>${esc(name)}</th><th>type</th><th>example</th></tr></thead><tbody>${shapes[name].map((f) => `<tr><td class="mono">${esc(f.field)}${f.required ? "" : " <span class='muted'>(optional)</span>"}</td><td class="mono">${esc(f.type)}</td><td class="mono muted">${esc(typeof f.example === "object" ? JSON.stringify(f.example) : f.example)}</td></tr>`).join("")}</tbody></table>` : "";
+  return `<div class="grid">
+    <div class="card"><h3>Health</h3><div class="big" style="font-size:28px" id="health">…</div><div class="sub"><a href="/docs" target="_blank">Open /docs to try the API</a></div></div>
+    <div class="card"><h3>Model</h3><div class="big" style="font-size:28px">${esc(m.mode)}</div><div class="sub">${esc(m.mode === "real" ? "Predictions come from ml/predict.py" : m.note || "")}</div>
+      ${(m.artifacts || []).length ? `<div class="sub" style="margin-top:8px">ml/artifacts:<br>${m.artifacts.map((a) => `<span class="mono">${esc(a.name)}</span> ${a.mb} MB${a.mb > 5 ? " <span class='err'>(too big to push)</span>" : ""}`).join("<br>")}</div>` : `<div class="sub muted">ml/artifacts/ is empty</div>`}</div>
+  </div>
+  <h3 class="muted" style="margin:6px 0 8px">Endpoints</h3>
+  ${eps.map((e) => `<div class="card" style="margin-bottom:10px"><div class="row"><span class="pill free mono">${esc(e.method)}</span><b class="mono">${esc(e.path)}</b><span class="muted">${esc(e.summary)}</span></div>
+    ${e.request ? `<div class="sub" style="margin-top:8px">Send: ${shape(e.request)}</div>` : ""}${e.response ? `<div class="sub" style="margin-top:8px">Get back: ${shape(e.response)}</div>` : ""}</div>`).join("")}
+  <h3 class="muted" style="margin:14px 0 8px">All shapes (contracts/api.py)</h3>
+  ${Object.keys(shapes).map((n) => `<div class="card" style="margin-bottom:10px">${shape(n)}</div>`).join("")}`;
+}
+
+// ---------- llm ----------
+function llm(l) {
+  if (l.error) return errCard("LLM", l);
+  const real = l.provider !== "fake";
+  return `<div class="grid">
+    <div class="card"><h3>Provider</h3><div class="big" style="font-size:28px">${esc(l.provider)}</div><div class="sub">${esc(l.model)}${l.base_url ? ` · ${esc(l.base_url)}` : ""}</div></div>
+    <div class="card"><h3>Key</h3><div class="big" style="font-size:28px">${real ? "set" : "none"}</div><div class="sub">${esc(l.env_file ? ".env found" : "no .env on this laptop")}</div></div>
+    <div class="card"><h3>Status</h3><div class="sub ${real ? "" : "warn"}" style="margin-top:0">${esc(real ? "Real answers. Each test costs a few tokens." : l.note)}</div></div>
+  </div>
+  <div class="card" style="margin-bottom:12px"><h3>Test it</h3>
+    <div class="row"><input class="text" id="llm-prompt" placeholder="Say hi in five words" value="Say hi in five words"><button class="act" id="llm-test">Send</button></div>
+    <pre id="llm-out" style="margin-top:10px;min-height:44px" class="muted">The answer appears here.</pre></div>
+  <div class="card"><h3>How to switch</h3><p class="sub">Put this in <code>.env</code> at the project root (copy <code>.env.example</code>), then restart <code>hk run</code>:</p>
+<pre>LLM_PROVIDER=claude        # or: openai · fake
+LLM_MODEL=                 # optional
+ANTHROPIC_API_KEY=...      # for claude
+OPENAI_API_KEY=...         # for openai
+OPENAI_BASE_URL=           # optional: Groq, OpenRouter, Ollama, Gemini-compatible</pre>
+  <p class="sub">In code: <code>from backend.app.llm import ask</code> → <code>ask("your prompt")</code>. Keys never go in code or in a PR.</p></div>`;
+}
+
+// ---------- data ----------
+function md(text) {
+  const lines = text.split("\n"); let out = "", list = false, table = [];
+  const flushTable = () => { if (!table.length) return; const rows = table.filter((r) => !/^\|?\s*:?-{2,}/.test(r)); out += "<table>" + rows.map((r, i) => { const cells = r.replace(/^\||\|$/g, "").split("|").map((c) => inline(c.trim())); return `<tr>${cells.map((c) => i ? `<td>${c}</td>` : `<th>${c}</th>`).join("")}</tr>`; }).join("") + "</table>"; table = []; };
+  const inline = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    if (line.startsWith("|")) { table.push(line); continue; } else flushTable();
+    if (/^\s*[-*] /.test(line)) { if (!list) { out += "<ul>"; list = true; } out += `<li>${inline(line.replace(/^\s*[-*] /, ""))}</li>`; continue; }
+    if (list) { out += "</ul>"; list = false; }
+    const h = line.match(/^(#{1,3}) (.*)/);
+    if (h) out += `<h${h[1].length + 1}>${inline(h[2])}</h${h[1].length + 1}>`;
+    else if (line.trim()) out += `<p>${inline(line)}</p>`;
+  }
+  if (list) out += "</ul>"; flushTable();
+  return out;
+}
+function dataTab(d) {
+  if (d.error) return errCard("Data", d);
+  return `<div class="card" style="margin-bottom:12px"><h3>Files in data/ (this laptop, never pushed)</h3>
+    ${d.files.length ? `<table><thead><tr><th>File</th><th>Size</th></tr></thead><tbody>${d.files.map((f) => `<tr><td class="mono">${esc(f.name)}</td><td>${f.mb} MB</td></tr>`).join("")}</tbody></table>` : note(d.note)}</div>
+  <div class="card md"><h3>docs/data-summary.md</h3>${d.summary ? md(d.summary) : "<p class='muted'>Not made yet. Put the data in data/ and run: hk data</p>"}</div>`;
+}
+
+// ---------- checks ----------
+function checks(d) {
+  const doc = d.doctor || {}, g = d.github || {};
+  const ci = g.ci ? `<span class="pill ${g.ci.conclusion === "success" ? "done" : g.ci.status !== "completed" ? "doing" : "bad"}">${esc(g.ci.conclusion || g.ci.status)}</span> <a href="${esc(g.ci.url)}" target="_blank">${esc(g.ci.displayTitle || "last run")}</a> <span class="muted">${ago(g.ci.updatedAt)}</span>` : `<span class="muted">${esc(g.note || "no runs yet")}</span>`;
+  const checkPill = (c) => `<span class="pill ${c === "passing" ? "done" : c === "failing" ? "bad" : c === "running" ? "doing" : "free"}">${esc(c)}</span>`;
+  return `<div class="card" style="margin-bottom:12px"><h3>This laptop · hk doctor ${doc.ok ? '<span class="pill done">ready</span>' : '<span class="pill bad">fix</span>'}</h3>
+    ${doc.output ? `<pre>${esc(doc.output)}</pre>` : note(doc.note || doc.error, "err")}</div>
+  <div class="card" style="margin-bottom:12px"><h3>main · checks</h3>${ci}</div>
+  <div class="card"><h3>Open pull requests</h3>
+    ${(g.prs || []).length ? `<table><thead><tr><th>#</th><th>Title</th><th>Who</th><th>Checks</th><th>Review</th><th>Age</th></tr></thead><tbody>${g.prs.map((pr) => `<tr><td><a href="${esc(pr.url)}" target="_blank">#${pr.number}</a></td><td>${esc(pr.title)}<div class="mono muted" style="font-size:12px">${esc(pr.branch)}</div></td><td>${esc(pr.author)}</td><td>${checkPill(pr.checks)}</td><td>${pr.review === "approved" ? '<span class="pill done">approved</span>' : `<span class="pill doing">${esc(pr.review)}</span>`}</td><td class="muted">${ago(pr.created)}</td></tr>`).join("")}</tbody></table>` : note(g.note || "None open.")}</div>`;
+}
+
+// ---------- loading ----------
+const RENDER = { overview, plan, team, api, llm, data: dataTab, checks };
+async function load() {
+  const tab = current, main = $("#main");
+  if (!RENDER[tab]) { current = "overview"; return load(); }
+  if (tab === "checks") main.innerHTML = `<p class="muted">Running hk doctor on this laptop… (up to a minute)</p>`;
+  try {
+    const d = await get(`/board/api/${tab}`);
+    if (current !== tab) return;
+    main.innerHTML = RENDER[tab](d);
+    wire(tab);
+    lastLoaded = Date.now(); tick();
+    if (tab === "overview" && d.plan && d.plan.header && d.plan.header.title) $("#plan-title").textContent = d.plan.header.title;
+  } catch (e) {
+    main.innerHTML = `<div class="card"><p class="err">Couldn't load: ${esc(e.message)}. Is the API running? (hk run)</p></div>`;
+  }
+}
+function wire(tab) {
+  document.querySelectorAll("tr.click").forEach((r) => r.onclick = () => { navigator.clipboard?.writeText(`hk start ${r.dataset.id}`); toast(`Copied: hk start ${r.dataset.id}`); });
+  document.querySelectorAll(".chips button").forEach((b) => b.onclick = () => { filter = b.dataset.f; load(); });
+  if (tab === "api") fetch("/health").then((r) => r.json()).then((h) => { $("#health").textContent = h.status; }).catch(() => { $("#health").textContent = "down"; });
+  const btn = $("#llm-test");
+  if (btn) btn.onclick = async () => {
+    const out = $("#llm-out"); out.textContent = "Asking…"; out.className = "muted";
+    try {
+      const r = await get("/board/api/llm/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: $("#llm-prompt").value }) });
+      out.className = r.ok ? "" : "err";
+      out.textContent = r.ok ? `${r.answer}\n\n— ${r.provider} (${r.model}), ${r.ms} ms` : `Error from ${r.provider} (${r.model}) after ${r.ms} ms:\n${r.error}`;
+    } catch (e) { out.className = "err"; out.textContent = e.message; }
+  };
+}
+function tick() { if (lastLoaded) $("#updated").textContent = `updated ${Math.round((Date.now() - lastLoaded) / 1000)} s ago`; }
+$("#refresh").onclick = load;
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h && h !== current) { current = h; renderTabs(); load(); } });
+setInterval(tick, 5000);
+setInterval(() => { if (current !== "checks") load(); }, 60000);
+renderTabs(); load();
+</script>
+</body>
+</html>
