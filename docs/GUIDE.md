@@ -81,7 +81,7 @@ Tips: `hk start B-01` again later brings you back to that branch. If the agent s
 
 ## 6. The team board: http://localhost:8000/board
 
-Runs with `hk run`; `hk board` opens it. Reads the plan from GitHub, so it's the team's truth, not your copy. Refreshes itself.
+Runs with `hk run`; `hk board` opens it. Reads the plan from GitHub, so it's the team's truth, not your copy. Refreshes itself. This guide is there too: http://localhost:8000/guide (searchable, with a PowerShell switch).
 
 | Tab | Shows | Use it to |
 |---|---|---|

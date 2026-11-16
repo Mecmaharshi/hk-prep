@@ -53,6 +53,8 @@ CI (`.github/workflows/checks.yml`) runs the ruff crash check, `pytest`, and `np
 - Never commit to `main` directly; never force-push.
 - Changes to `contracts/`, `.github/`, `scripts/`, `hk`, `pyproject.toml`, `PLAN.md` need the lead's approval.
 
+Before changing `hk`, `backend/app/board/data.py` or the PLAN.md format, read `docs/SYNC-NOTES.md`: the sync system's inventory, invariants, offline test harness and backlog.
+
 ## Copilot skills
 
 `.github/skills/` defines the team's Copilot Chat workflows; follow them if asked to do the same thing:

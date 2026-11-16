@@ -171,6 +171,17 @@ def plan() -> dict:
     }
 
 
+# ----- guide ----------------------------------------------------------------------------------
+
+
+def guide() -> dict:
+    """docs/GUIDE.md as text for /board/guide. Falls back to origin/main if this laptop lacks it."""
+    text = read("docs/GUIDE.md") or git("show", f"{REMOTE}/{MAIN}:docs/GUIDE.md")
+    if text is None:
+        return {"text": "", "note": "docs/GUIDE.md not found. Run: hk sync"}
+    return {"text": text, "source": "docs/GUIDE.md"}
+
+
 # ----- team -----------------------------------------------------------------------------------
 
 

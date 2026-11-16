@@ -2,7 +2,7 @@
 
 Plain commands for git and the API (fast, no AI), plus four short AI commands for Copilot. One task = one chat = one pull request.
 
-**New here? Read [docs/GUIDE.md](docs/GUIDE.md): the step-by-step guide to everything.**
+**New here? Read [docs/GUIDE.md](docs/GUIDE.md): the step-by-step guide to everything.** (Nicer to read at http://localhost:8000/guide once `hk run` is up.)
 
 ## Setup, once per laptop
 

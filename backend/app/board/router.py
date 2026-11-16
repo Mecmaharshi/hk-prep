@@ -1,4 +1,4 @@
-"""GET /board (the page) and GET /board/api/<section> (its facts as JSON)."""
+"""GET /board (the page), /board/guide (the team guide), /board/api/<section> (facts as JSON)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from backend.app.board import data
 
 router = APIRouter(prefix="/board", include_in_schema=False)
 PAGE = Path(__file__).with_name("index.html")
+GUIDE = Path(__file__).with_name("guide.html")
 
 
 def safe(section: str, compute) -> dict:
@@ -26,6 +27,16 @@ def safe(section: str, compute) -> dict:
 @router.get("/", response_class=HTMLResponse)
 def page() -> HTMLResponse:
     return HTMLResponse(PAGE.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/guide", response_class=HTMLResponse)
+def guide_page() -> HTMLResponse:
+    return HTMLResponse(GUIDE.read_text(encoding="utf-8"), headers={"Cache-Control": "no-store"})
+
+
+@router.get("/api/guide")
+def guide() -> dict:
+    return safe("guide", data.guide)
 
 
 @router.get("/api/overview")

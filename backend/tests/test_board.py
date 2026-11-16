@@ -41,3 +41,10 @@ def test_api_tab_lists_the_contract_shapes():
     assert "Item" in body["shapes"] and "Prediction" in body["shapes"]
     assert any(e["path"] == "/predict" for e in body["endpoints"])
     assert not any(e["path"].startswith("/board") for e in body["endpoints"])
+
+
+def test_guide_page_and_text_load():
+    assert "<title>Team guide</title>" in client.get("/board/guide").text
+    assert client.get("/guide", follow_redirects=False).headers["location"] == "/board/guide"
+    body = client.get("/board/api/guide").json()
+    assert body["text"].startswith("# Team guide")

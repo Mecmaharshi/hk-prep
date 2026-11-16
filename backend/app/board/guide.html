@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team guide</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --line: #e3e6ea; --ink: #1b1f24; --ink-2: #4b5563; --ink-3: #7b8594;
+    --accent: #2563eb; --accent-bg: #eaf1fe; --done: #15803d; --doing: #b45309; --bad: #b91c1c;
+    --code-bg: #f1f3f6; --pre-bg: #1b1f24; --pre-ink: #e8ebef; --mark: #fde68a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --line: #2a3038; --ink: #e8ebef; --ink-2: #aab3bf; --ink-3: #7d8794;
+      --accent: #60a5fa; --accent-bg: #1a2740; --done: #4ade80; --doing: #fbbf24; --bad: #f87171;
+      --code-bg: #232931; --pre-bg: #0b0e12; --pre-ink: #e8ebef; --mark: #7a5a00;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15.5px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+
+  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  header .in { display: flex; align-items: center; gap: 14px; padding: 12px 16px; max-width: 1180px; margin: 0 auto; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: -.01em; }
+  header .tag { color: var(--ink-3); font-size: 13px; }
+  header .links { margin-left: auto; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  header .links a { padding: 5px 10px; border-radius: 8px; color: var(--ink-2); font-size: 14px; }
+  header .links a:hover { background: var(--accent-bg); color: var(--accent); text-decoration: none; }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; }
+  aside { position: sticky; top: 70px; align-self: start; max-height: calc(100vh - 86px); overflow: auto; }
+  .search { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+  .search input { border: 0; background: none; color: var(--ink); font: inherit; width: 100%; outline: none; }
+  .search kbd { font: 11px var(--mono); color: var(--ink-3); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; background: var(--card); }
+  .seg button { flex: 1; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: 13px; padding: 6px 4px; cursor: pointer; }
+  .seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+  .seg-note { color: var(--ink-3); font-size: 12px; margin: -8px 0 14px; }
+  .toc { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--line); }
+  .toc li a { display: flex; gap: 8px; padding: 5px 10px; color: var(--ink-2); font-size: 14px; margin-left: -2px; border-left: 2px solid transparent; line-height: 1.3; }
+  .toc li a:hover { color: var(--ink); text-decoration: none; }
+  .toc li a.on { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+  .toc li.hide { display: none; }
+  .toc .n { color: var(--ink-3); font: 12px var(--mono); min-width: 18px; padding-top: 2px; }
+  .toc li a.on .n { color: var(--accent); }
+  .count { color: var(--ink-3); font-size: 12px; margin-top: 10px; }
+
+  article { min-width: 0; }
+  .intro { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px 22px; margin-bottom: 18px; }
+  .intro h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -.02em; }
+  .intro p { margin: 8px 0; color: var(--ink-2); }
+  .intro p:first-of-type { font-size: 17px; color: var(--ink); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 6px 22px 16px; margin-bottom: 14px; }
+  section.hide { display: none; }
+  section > h2 { display: flex; align-items: baseline; gap: 12px; font-size: 20px; margin: 14px 0 8px; letter-spacing: -.01em; }
+  section > h2 .n { font: 600 13px var(--mono); color: var(--accent); background: var(--accent-bg); border-radius: 6px; padding: 2px 7px; }
+  section > h2 a.anchor { color: var(--ink-3); opacity: 0; font-weight: 400; font-size: 16px; } section > h2:hover a.anchor { opacity: 1; }
+  h3 { font-size: 16px; margin: 16px 0 6px; }
+  p { margin: 8px 0; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--code-bg); border-radius: 5px; padding: 1px 5px; }
+  pre { position: relative; background: var(--pre-bg); color: var(--pre-ink); border-radius: 10px; padding: 12px 14px; overflow: auto; font-family: var(--mono); font-size: 13px; line-height: 1.55; margin: 10px 0; }
+  pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+  pre .copy { position: absolute; top: 8px; right: 8px; border: 1px solid #ffffff33; background: #ffffff14; color: var(--pre-ink); border-radius: 6px; font: 12px system-ui, sans-serif; padding: 3px 8px; cursor: pointer; opacity: .7; }
+  pre:hover .copy, pre .copy:focus { opacity: 1; }
+  pre .c { color: #8b949e; }
+  body.ps .hk::before { content: ".\\"; }
+  ul, ol { padding-left: 24px; margin: 8px 0; } li { margin: 4px 0; } li > p { margin: 2px 0; }
+  ol.steps { list-style: none; padding-left: 0; counter-reset: step; }
+  ol.steps > li { counter-increment: step; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  ol.steps > li:first-child { border-top: 0; }
+  ol.steps > li::before { content: counter(step); width: 26px; height: 26px; border-radius: 50%; background: var(--accent-bg); color: var(--accent); font: 600 13px var(--mono); display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  ol.steps > li > div > p:first-child { margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { border-top: 0; font-size: 12px; color: var(--ink-3); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  tr:nth-child(even) td { background: color-mix(in srgb, var(--bg) 50%, var(--card)); }
+  mark { background: var(--mark); color: inherit; border-radius: 3px; padding: 0 1px; }
+  .empty { color: var(--ink-3); padding: 20px; text-align: center; }
+  .err { color: var(--bad); }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  @media (max-width: 860px) {
+    .wrap { grid-template-columns: 1fr; gap: 12px; }
+    aside { position: static; max-height: none; }
+    .toc { display: flex; flex-wrap: wrap; gap: 2px; border: 0; }
+    .toc li a { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 13px; margin: 0; }
+    .toc li a.on { background: var(--accent-bg); }
+    .toc .n { display: none; }
+    section, .intro { padding-left: 16px; padding-right: 16px; }
+  }
+  @media print { header, aside { display: none; } .wrap { display: block; } section { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<header><div class="in">
+  <h1>Team guide</h1><span class="tag">docs/GUIDE.md, rendered</span>
+  <nav class="links"><a href="/board">Board</a><a href="/docs" target="_blank">API docs</a><a href="#" id="print">Print</a></nav>
+</div></header>
+
+<div class="wrap">
+  <aside>
+    <label class="search"><span class="muted">🔍</span><input id="q" type="search" placeholder="Search the guide" autocomplete="off"><kbd>/</kbd></label>
+    <div class="seg" id="os"><button data-os="bash">Git Bash / Mac</button><button data-os="ps">PowerShell</button></div>
+    <div class="seg-note" id="os-note"></div>
+    <ul class="toc" id="toc"></ul>
+    <div class="count" id="count"></div>
+  </aside>
+  <article id="doc"><p class="empty">Loading the guide…</p></article>
+</div>
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const slug = (s) => s.toLowerCase().replace(/<[^>]+>/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1400); }
+
+// ---------- a small markdown renderer: headings, paragraphs, fences, lists (nested), tables, rules, inline code/bold/links ----------
+const hkMark = (html) => html.replace(/(^|[\s(])hk(?=\s[a-z-]|$|["'])/gm, '$1<span class="hk">hk</span>');
+function inline(s) {
+  const parts = s.split(/(`[^`]+`)/);
+  return parts.map((p) => {
+    if (p.startsWith("`") && p.endsWith("`") && p.length > 1) return `<code>${hkMark(esc(p.slice(1, -1)))}</code>`;
+    let h = esc(p);
+    h = h.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+    h = h.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    h = h.replace(/(^|[^"=>])(https?:\/\/[^\s<)]+[^\s<).,])/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    return h;
+  }).join("");
+}
+function codeBlock(lines, lang) {
+  const raw = lines.join("\n");
+  let html = hkMark(esc(raw));
+  if (lang === "bash" || lang === "" || lang === "python") html = html.replace(/(\s)(#[^\n]*)/g, '$1<span class="c">$2</span>');
+  return `<pre data-raw="${esc(raw)}"><button class="copy" type="button">Copy</button><code>${html}</code></pre>`;
+}
+function blocks(lines) {
+  let out = "", i = 0;
+  const isItem = (l) => /^(\s*)([-*]|\d+\.)\s+(.*)$/.exec(l);
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    let m;
+    if ((m = /^(\s*)```(\w*)/.exec(line))) {
+      const ind = m[1].length, body = []; i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) { body.push(lines[i].slice(Math.min(ind, lines[i].search(/\S|$/)))); i++; }
+      i++; out += codeBlock(body, m[2]); continue;
+    }
+    if ((m = /^(#{1,6})\s+(.*)$/.exec(line))) { const n = m[1].length; out += `<h${n} id="${slug(m[2])}">${inline(m[2])}</h${n}>`; i++; continue; }
+    if (/^-{3,}\s*$/.test(line)) { out += "<hr>"; i++; continue; }
+    if (line.startsWith("|")) {
+      const rows = []; while (i < lines.length && lines[i].startsWith("|")) rows.push(lines[i++]);
+      const cells = (r) => r.replace(/^\||\|$/g, "").split("|").map((c) => inline(c.trim()));
+      const body = rows.filter((r) => !/^\|?\s*:?-{2,}/.test(r));
+      out += "<table>" + body.map((r, k) => `<tr>${cells(r).map((c) => k ? `<td>${c}</td>` : `<th>${c}</th>`).join("")}</tr>`).join("") + "</table>"; continue;
+    }
+    if ((m = isItem(line))) {
+      const ind = m[1].length, ordered = /\d/.test(m[2]), items = [];
+      while (i < lines.length) {
+        const im = isItem(lines[i]);
+        if (!im || im[1].length !== ind || /\d/.test(im[2]) !== ordered) break;
+        const width = im[1].length + im[2].length + 1, rest = []; i++;
+        while (i < lines.length) {
+          const l = lines[i], lead = l.search(/\S|$/);
+          if (!l.trim()) { const next = lines.slice(i + 1).find((x) => x.trim()); if (next && next.search(/\S/) > ind) { rest.push(""); i++; continue; } break; }
+          if (lead <= ind) break;
+          rest.push(l.slice(Math.min(width, lead))); i++;
+        }
+        items.push(`<li><div><p>${inline(im[3])}</p>${blocks(rest)}</div></li>`);
+      }
+      out += ordered ? `<ol class="steps">${items.join("")}</ol>` : `<ul>${items.join("")}</ul>`; continue;
+    }
+    const para = []; while (i < lines.length && lines[i].trim() && !isItem(lines[i]) && !/^(#|\||```|-{3,})/.test(lines[i])) para.push(lines[i++]);
+    out += `<p>${inline(para.join(" "))}</p>`;
+  }
+  return out;
+}
+
+// Split on "## " headings (outside code fences) so each section is a card and can be searched on its own.
+function sections(text) {
+  const lines = text.replace(/\r/g, "").split("\n"), parts = [{ title: "", lines: [] }]; let fence = false;
+  for (const l of lines) {
+    if (/^\s*```/.test(l)) fence = !fence;
+    if (!fence && /^## /.test(l)) parts.push({ title: l.slice(3).trim(), lines: [] }); else parts[parts.length - 1].lines.push(l);
+  }
+  return parts;
+}
+function render(text) {
+  const parts = sections(text), toc = [];
+  let html = `<div class="intro">${blocks(parts[0].lines).replace(/<hr>\s*$/, "")}</div>`;
+  for (const p of parts.slice(1)) {
+    const m = /^(\d+)\.\s+(.*)$/.exec(p.title), n = m ? m[1] : "", title = m ? m[2] : p.title, id = slug(title);
+    toc.push({ id, n, title });
+    html += `<section id="${id}"><h2>${n ? `<span class="n">${n}</span>` : ""}${inline(title)}<a class="anchor" href="#${id}">#</a></h2>${blocks(p.lines)}</section>`;
+  }
+  $("#doc").innerHTML = html;
+  $("#toc").innerHTML = toc.map((t) => `<li data-id="${t.id}"><a href="#${t.id}"><span class="n">${t.n}</span><span>${esc(t.title.replace(/\s*https?:\S+/, ""))}</span></a></li>`).join("");
+  document.querySelectorAll("pre .copy").forEach((b) => b.onclick = () => {
+    let raw = b.parentElement.dataset.raw;
+    if (document.body.classList.contains("ps")) raw = raw.replace(/(^|[\s(])hk(?=\s[a-z-]|$)/gm, "$1.\\hk");
+    navigator.clipboard?.writeText(raw); b.textContent = "Copied"; setTimeout(() => (b.textContent = "Copy"), 1200);
+  });
+  spy();
+}
+
+// ---------- search: hide sections that don't mention the term, highlight the hits ----------
+let marked = [];
+function unmark() { for (const m of marked) m.replaceWith(m.textContent); marked = []; $("#doc").normalize(); }
+function mark(root, term) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const idx = node.textContent.toLowerCase().indexOf(term); if (idx < 0) continue;
+    const hit = node.splitText(idx), after = hit.splitText(term.length), m = document.createElement("mark");
+    m.textContent = hit.textContent; hit.replaceWith(m); marked.push(m); if (after.textContent.toLowerCase().includes(term)) nodes.push(after);
+  }
+}
+function search() {
+  const term = $("#q").value.trim().toLowerCase(); unmark();
+  let shown = 0, total = 0;
+  document.querySelectorAll("#doc section").forEach((s) => {
+    total++; const hit = !term || s.textContent.toLowerCase().includes(term);
+    s.classList.toggle("hide", !hit); $(`#toc li[data-id="${s.id}"]`)?.classList.toggle("hide", !hit);
+    if (hit) { shown++; if (term) mark(s, term); }
+  });
+  $(".intro")?.classList.toggle("hide", !!term);
+  $("#count").textContent = term ? `${shown} of ${total} sections mention “${term}”` : "";
+  if (term && !shown) $("#count").textContent = `Nothing mentions “${term}”. Try another word, or hk help.`;
+}
+$("#q").oninput = search;
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement !== $("#q")) { e.preventDefault(); $("#q").focus(); }
+  if (e.key === "Escape" && document.activeElement === $("#q")) { $("#q").value = ""; search(); $("#q").blur(); }
+});
+
+// ---------- OS toggle: PowerShell users type .\hk ----------
+function setOs(os) {
+  document.body.classList.toggle("ps", os === "ps");
+  document.querySelectorAll("#os button").forEach((b) => b.classList.toggle("on", b.dataset.os === os));
+  $("#os-note").textContent = os === "ps" ? "Commands show as .\\hk for PowerShell." : "Commands show as hk. Windows PowerShell users: pick PowerShell.";
+  try { localStorage.setItem("guide-os", os); } catch (_) {}
+}
+document.querySelectorAll("#os button").forEach((b) => b.onclick = () => setOs(b.dataset.os));
+let os = "bash"; try { os = localStorage.getItem("guide-os") || (/Windows/.test(navigator.userAgent) ? "ps" : "bash"); } catch (_) {}
+setOs(os);
+
+// ---------- scroll spy ----------
+function spy() {
+  const links = [...document.querySelectorAll("#toc a")];
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) links.forEach((a) => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id));
+  }, { rootMargin: "-70px 0px -70% 0px" });
+  document.querySelectorAll("#doc section").forEach((s) => io.observe(s));
+}
+$("#print").onclick = (e) => { e.preventDefault(); window.print(); };
+
+fetch("/board/api/guide").then((r) => r.json()).then((d) => {
+  if (!d.text) throw new Error(d.error || d.note || "docs/GUIDE.md not found");
+  render(d.text);
+  if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
+}).catch((e) => { $("#doc").innerHTML = `<p class="empty err">Couldn't load the guide: ${esc(e.message)}. Is the API running? (hk run)</p>`; });
+</script>
+</body>
+</html>

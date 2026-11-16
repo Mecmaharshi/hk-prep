@@ -1,10 +1,12 @@
 """The team's API. Start it from the project folder with: hk run
 
 /docs   try the endpoints        /board   the team board (plan, team, API, LLM, data, checks)
+/guide  the team guide, rendered from docs/GUIDE.md
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from backend.app import model
 from backend.app.board.router import router as board
@@ -15,6 +17,11 @@ app = FastAPI(title="Team API")
 # Any frontend, on any laptop, can call the API: fine for a demo, not for production.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(board)
+
+
+@app.get("/guide", include_in_schema=False)
+def guide() -> RedirectResponse:
+    return RedirectResponse("/board/guide")
 
 
 @app.get("/health")
